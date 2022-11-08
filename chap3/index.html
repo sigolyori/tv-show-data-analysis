@@ -1,0 +1,381 @@
+---
+title: TV 프로그램, 시청자 분석 - 3
+author: Heeyoung Kim
+date: '2021-07-24'
+slug: tv-programs-and-ad-3
+categories:
+  - R
+tags:
+  - Advertising
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div id="kobaco-소비자행태조사" class="section level1">
+<h1>3. Kobaco 소비자행태조사</h1>
+<p>마지막 데이터는 한국방송광고진흥공사 (Kobaco)에서 조사한 소비자행태조사(MCR) 데이터입니다.<br>
+총 4000명에게 상품 구매에 매체가 미치는 영향을 조사하기 위하여 설문조사를 실시했습니다.<br>
+<br>
+한 질문에 대해 복수의 답이 가능해서 여러 칼럼에 답이 흩어져 있는 모양입니다.<br>
+분석을 위해 한 칼럼으로 합쳐서 분석하기 위한 함수를 생성했습니다.</p>
+<div id="라이브러리-불러오기" class="section level2">
+<h2>3.1. 라이브러리 불러오기</h2>
+<pre class="python"><code>import pandas as pd
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.font_manager as fm
+fm._rebuild()
+from collections import Counter
+# import squarify</code></pre>
+<pre class="python"><code># matplotlib.rcParams[&quot;font.family&quot;] = &quot;AppleGothic&quot;
+matplotlib.rcParams[&quot;font.family&quot;] = &quot;Malgun Gothic&quot;
+matplotlib.rcParams[&quot;font.size&quot;] = 12</code></pre>
+</div>
+<div id="데이터-불러오기" class="section level2">
+<h2>3.2. 데이터 불러오기</h2>
+<pre class="python"><code>path = r&quot;C:\Users\TFG5076XG\Documents\pythoncodes\data\MCR2019_최종.xlsx&quot;</code></pre>
+<pre class="python"><code>df = pd.read_excel(path, sheet_name = 0, engine = &quot;openpyxl&quot;)
+df.fillna(0, inplace = True)</code></pre>
+<pre class="python"><code>df.shape</code></pre>
+<pre><code>## (4000, 3619)</code></pre>
+<pre class="python"><code>temp = df.filter(regex = &quot;^A&quot;)</code></pre>
+</div>
+<div id="eda" class="section level2">
+<h2>3.3. EDA</h2>
+<p>다음과 같은 질문을 기반으로 EDA를 실시했습니다.</p>
+<ul>
+<li><p>장르별 애청자의 구매 제품/서비스의 차이가 있을까?</p></li>
+<li><p>매체별 제품/서비스의 구매 영향은 어떨까?</p></li>
+</ul>
+<pre class="python"><code># 응답자 정보
+for name in temp.columns.tolist():
+    print(df.loc[:, name].value_counts().sort_index())</code></pre>
+<pre class="python"><code>table = pd.DataFrame(temp[&quot;A_002&quot;])</code></pre>
+<pre class="python"><code>ax = sns.countplot(data = table,
+             x = &quot;A_002&quot;).\
+set(xticklabels = [&quot;10대&quot;, &quot;20대&quot;, &quot;30대&quot;, &quot;40대&quot;, &quot;50대&quot;, &quot;60대&quot;])
+plt.xlabel(&quot;연령대&quot;)</code></pre>
+<pre><code>## Text(0.5, 0, &#39;연령대&#39;)</code></pre>
+<pre class="python"><code>plt.ylabel(&quot;명&quot;)</code></pre>
+<pre><code>## Text(0, 0.5, &#39;명&#39;)</code></pre>
+<pre class="python"><code>plt.title(&quot;응답자 연령대 분포&quot;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-1.png" width="100%" style="display: block; margin: auto;" /></p>
+<p>응답자의 연령대 분포는 40대와 50대가 가장 많았습니다.</p>
+<pre class="python"><code># column들을 합치는 함수 combine_cols
+
+def combine_cols(temp_target_df):
+    ans_Series = pd.Series(&quot;&quot;, index = range(len(temp_target_df)))
+    for i in range(len(temp_target_df)):
+        temp_list = list()
+    #     print(&quot;-----&quot;)
+        for j in range(len(temp_target_df.columns)):
+    #         print(c_temp.iloc[i, j])
+            if temp_target_df.iloc[i, j] == 0:
+                pass
+            else:
+                temp_list.append(temp_target_df.iloc[i, j])
+#         print(temp_list)
+        ans_Series.iloc[i] = temp_list
+
+    return ans_Series</code></pre>
+<p>복수 답을 한 칼럼의 리스트 형태로 묶는 함수를 생성했습니다.</p>
+<pre class="python"><code># 분석용 테이블을 만드는 create_tb
+
+def create_tb(col):
+    a_list = list()
+    temp[col].apply(lambda x: a_list.append(x))
+    a_list = sum(a_list, [])
+    a_list_counter = Counter(a_list)
+    table = pd.DataFrame.from_dict(a_list_counter, orient=&#39;index&#39;)
+    table = table.drop(labels =&quot;#NULL!&quot;, axis = 0)
+    table.index = table.index.astype(&quot;int64&quot;)
+    table = table.sort_index()
+    
+    return table</code></pre>
+<pre class="python"><code>col_list = [&quot;C_01_001&quot;, &quot;C_01_031&quot;, &quot;C_01_034&quot;, &quot;J_12_01_009&quot;, &quot;J_12_04_010&quot;, &quot;J_12_04_011&quot;]</code></pre>
+<pre class="python"><code>for col in col_list:
+    df[col] = combine_cols(df.filter(regex = col))</code></pre>
+<pre class="python"><code># 예능을 좋아하는 사람들로 필터링
+temp = df[df[&quot;C_01_001&quot;].apply(lambda x: x.count(7)) == 1]</code></pre>
+<pre class="python"><code>a_list = list()
+temp[&quot;C_01_034&quot;].apply(lambda x: a_list.append(x))</code></pre>
+<pre><code>## 0       None
+## 1       None
+## 2       None
+## 3       None
+## 4       None
+##         ... 
+## 3995    None
+## 3996    None
+## 3997    None
+## 3998    None
+## 3999    None
+## Name: C_01_034, Length: 3541, dtype: object</code></pre>
+<pre class="python"><code>a_list = sum(a_list, [])
+a_list_counter = Counter(a_list)
+table = pd.DataFrame.from_dict(a_list_counter, orient=&#39;index&#39;)
+table = table.drop(labels =&quot;#NULL!&quot;, axis = 0)
+table.index = table.index.astype(&quot;int64&quot;)
+table = table.sort_index()</code></pre>
+<pre class="python"><code>create_tb(&quot;C_01_034&quot;)</code></pre>
+<pre><code>##       0
+## 1    74
+## 2   188
+## 3   117
+## 4   162
+## 5   185
+## 6    31
+## 7   121
+## 8    16
+## 9   188
+## 10  307
+## 11    3
+## 12  247
+## 13   20
+## 14  191
+## 15   47
+## 16    2
+## 17   26
+## 18   13
+## 19    6
+## 20   27
+## 21  142</code></pre>
+<pre class="python"><code>new_index = [&quot;자동차&quot;,
+&quot;일반의류&quot;,
+&quot;스포츠의류&quot;,
+&quot;패션잡화&quot;,
+&quot;휴대폰&quot;,
+&quot;개인휴대가전&quot;,
+&quot;생활가전&quot;,
+&quot;인테리어&quot;,
+&quot;외식체인점&quot;,
+&quot;식음료&quot;,
+&quot;기업/기관&quot;,
+&quot;국내외 촬영장소&quot;,
+ &quot;금융&quot;,
+ &quot;화장품&quot;,
+ &quot;제약/의료&quot;,
+ &quot;반려동물 상품&quot;,
+ &quot;유아용품&quot;,
+ &quot;게임&quot;,
+ &quot;기타 앱&quot;,
+ &quot;박람회/축제&quot;,
+ &quot;커피전문점&quot;
+]</code></pre>
+<pre class="python"><code>table.index = new_index</code></pre>
+<pre class="python"><code>chart = sns.barplot(data = table,
+           x = table.index.values,
+           y = table.iloc[:,0])
+plt.xticks(rotation = 90)</code></pre>
+<pre><code>## (array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+##        17, 18, 19, 20]), [Text(0, 0, &#39;자동차&#39;), Text(1, 0, &#39;일반의류&#39;), Text(2, 0, &#39;스포츠의류&#39;), Text(3, 0, &#39;패션잡화&#39;), Text(4, 0, &#39;휴대폰&#39;), Text(5, 0, &#39;개인휴대가전&#39;), Text(6, 0, &#39;생활가전&#39;), Text(7, 0, &#39;인테리어&#39;), Text(8, 0, &#39;외식체인점&#39;), Text(9, 0, &#39;식음료&#39;), Text(10, 0, &#39;기업/기관&#39;), Text(11, 0, &#39;국내외 촬영장소&#39;), Text(12, 0, &#39;금융&#39;), Text(13, 0, &#39;화장품&#39;), Text(14, 0, &#39;제약/의료&#39;), Text(15, 0, &#39;반려동물 상품&#39;), Text(16, 0, &#39;유아용품&#39;), Text(17, 0, &#39;게임&#39;), Text(18, 0, &#39;기타 앱&#39;), Text(19, 0, &#39;박람회/축제&#39;), Text(20, 0, &#39;커피전문점&#39;)])</code></pre>
+<pre class="python"><code>for p in chart.patches:
+#     print(p.get_x())
+    chart.annotate(int(p.get_height()),
+                  (p.get_x() + p.get_width() / 2., p.get_height()),
+                   ha = &quot;center&quot;,
+                   size = 12
+                  )</code></pre>
+<pre><code>## Text(0.0, 74.0, &#39;74&#39;)
+## Text(1.0, 188.0, &#39;188&#39;)
+## Text(2.0, 117.0, &#39;117&#39;)
+## Text(3.0, 162.0, &#39;162&#39;)
+## Text(4.0, 185.0, &#39;185&#39;)
+## Text(5.0, 31.0, &#39;31&#39;)
+## Text(6.0, 121.0, &#39;121&#39;)
+## Text(7.0, 16.0, &#39;16&#39;)
+## Text(8.0, 188.0, &#39;188&#39;)
+## Text(9.0, 307.0, &#39;307&#39;)
+## Text(10.0, 3.0, &#39;3&#39;)
+## Text(11.0, 247.0, &#39;247&#39;)
+## Text(12.0, 20.0, &#39;20&#39;)
+## Text(13.0, 191.0, &#39;191&#39;)
+## Text(14.0, 47.0, &#39;47&#39;)
+## Text(15.0, 2.0, &#39;2&#39;)
+## Text(16.0, 26.0, &#39;26&#39;)
+## Text(17.0, 13.0, &#39;13&#39;)
+## Text(18.0, 6.0, &#39;6&#39;)
+## Text(19.0, 27.0, &#39;27&#39;)
+## Text(20.0, 142.0, &#39;142&#39;)</code></pre>
+<pre class="python"><code>plt.title(&quot;예능 애청자가 TV에서 접한 후 실제로 구입한 제품/서비스&quot;)</code></pre>
+<pre><code>## Text(0.5, 1.0, &#39;예능 애청자가 TV에서 접한 후 실제로 구입한 제품/서비스&#39;)</code></pre>
+<pre class="python"><code>plt.ylabel(&quot;구매 수&quot;)</code></pre>
+<pre><code>## Text(0, 0.5, &#39;구매 수&#39;)</code></pre>
+<pre class="python"><code>plt.show()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-3.png" width="100%" style="display: block; margin: auto;" /></p>
+<p>예능 애청자들이 TV에서 접한 후 실제로 구입한 제품에는 식음료가 차지하는 비중이 가장 컸습니다. <br>
+그렇다면 이러한 추세는 다른 프로그램 장르 애청자에게도 같게 나타날까요?</p>
+<pre class="python"><code># 국내 드라마를 좋아하는 사람들로 필터링
+temp = df[df[&quot;C_01_001&quot;].apply(lambda x: x.count(4)) == 1]</code></pre>
+<pre class="python"><code>table = create_tb(&quot;C_01_034&quot;)</code></pre>
+<pre class="python"><code>new_index.remove(&quot;기업/기관&quot;)</code></pre>
+<pre class="python"><code>table.index = new_index</code></pre>
+<pre class="python"><code>chart = sns.barplot(data = table,
+           x = table.index.values,
+           y = table.iloc[:,0])
+plt.xticks(rotation = 90)</code></pre>
+<pre><code>## (array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
+##        17, 18, 19]), [Text(0, 0, &#39;자동차&#39;), Text(1, 0, &#39;일반의류&#39;), Text(2, 0, &#39;스포츠의류&#39;), Text(3, 0, &#39;패션잡화&#39;), Text(4, 0, &#39;휴대폰&#39;), Text(5, 0, &#39;개인휴대가전&#39;), Text(6, 0, &#39;생활가전&#39;), Text(7, 0, &#39;인테리어&#39;), Text(8, 0, &#39;외식체인점&#39;), Text(9, 0, &#39;식음료&#39;), Text(10, 0, &#39;국내외 촬영장소&#39;), Text(11, 0, &#39;금융&#39;), Text(12, 0, &#39;화장품&#39;), Text(13, 0, &#39;제약/의료&#39;), Text(14, 0, &#39;반려동물 상품&#39;), Text(15, 0, &#39;유아용품&#39;), Text(16, 0, &#39;게임&#39;), Text(17, 0, &#39;기타 앱&#39;), Text(18, 0, &#39;박람회/축제&#39;), Text(19, 0, &#39;커피전문점&#39;)])</code></pre>
+<pre class="python"><code>for p in chart.patches:
+#     print(p.get_x())
+    chart.annotate(int(p.get_height()),
+                  (p.get_x() + p.get_width() / 2., p.get_height()),
+                   ha = &quot;center&quot;,
+                   size = 12
+                  )</code></pre>
+<pre><code>## Text(0.0, 59.0, &#39;59&#39;)
+## Text(1.0, 163.0, &#39;163&#39;)
+## Text(2.0, 90.0, &#39;90&#39;)
+## Text(3.0, 136.0, &#39;136&#39;)
+## Text(4.0, 153.0, &#39;153&#39;)
+## Text(5.0, 25.0, &#39;25&#39;)
+## Text(6.0, 119.0, &#39;119&#39;)
+## Text(7.0, 15.0, &#39;15&#39;)
+## Text(8.0, 162.0, &#39;162&#39;)
+## Text(9.0, 259.0, &#39;259&#39;)
+## Text(10.0, 220.0, &#39;220&#39;)
+## Text(11.0, 14.0, &#39;14&#39;)
+## Text(12.0, 185.0, &#39;185&#39;)
+## Text(13.0, 43.0, &#39;43&#39;)
+## Text(14.0, 2.0, &#39;2&#39;)
+## Text(15.0, 24.0, &#39;24&#39;)
+## Text(16.0, 8.0, &#39;8&#39;)
+## Text(17.0, 5.0, &#39;5&#39;)
+## Text(18.0, 26.0, &#39;26&#39;)
+## Text(19.0, 116.0, &#39;116&#39;)</code></pre>
+<pre class="python"><code>plt.title(&quot;국내 드라마 애청자가 TV에서 접한 후 실제로 구입한 제품/서비스&quot;)</code></pre>
+<pre><code>## Text(0.5, 1.0, &#39;국내 드라마 애청자가 TV에서 접한 후 실제로 구입한 제품/서비스&#39;)</code></pre>
+<pre class="python"><code>plt.ylabel(&quot;구매 수&quot;)</code></pre>
+<pre><code>## Text(0, 0.5, &#39;구매 수&#39;)</code></pre>
+<pre class="python"><code>plt.show()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-5.png" width="100%" style="display: block; margin: auto;" /></p>
+<p>국내 드라마 애청자가 TV에서 접한 후 구매한 제품/서비스는 예능 애청자들의 추세와 크게 다르지 않습니다.<br>
+다른 장르의 애청자들도 분석해보면 다른 모습이 나타날 수도 있지만, 두 장르만을 비교했을 때는 차이가 없었습니다.</p>
+<pre class="python"><code>table = create_tb(&quot;J_12_04_010&quot;)</code></pre>
+<pre class="python"><code>temp_table = table</code></pre>
+<pre class="python"><code>media_index = [&quot;지상파채널&quot;,
+              &quot;케이블/종편&quot;,
+              &quot;TV VOD&quot;,
+              &quot;라디오&quot;,
+              &quot;신문&quot;,
+              &quot;잡지&quot;,
+              &quot;인터넷/모바일&quot;,
+              &quot;옥외/대중교통&quot;,
+              &quot;매장 내 광고&quot;,
+              &quot;관련 기사&quot;,
+              &quot;인터넷 후기&quot;,
+              &quot;주변 사람의 추천&quot;,
+              &quot;기타&quot;,
+              &quot;없음&quot;]</code></pre>
+<pre class="python"><code>table.index = media_index</code></pre>
+<pre class="python"><code>chart = sns.barplot(data = table,
+           x = table.index.values,
+           y = table.iloc[:,0])
+plt.xticks(rotation = 90)</code></pre>
+<pre><code>## (array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13]), [Text(0, 0, &#39;지상파채널&#39;), Text(1, 0, &#39;케이블/종편&#39;), Text(2, 0, &#39;TV VOD&#39;), Text(3, 0, &#39;라디오&#39;), Text(4, 0, &#39;신문&#39;), Text(5, 0, &#39;잡지&#39;), Text(6, 0, &#39;인터넷/모바일&#39;), Text(7, 0, &#39;옥외/대중교통&#39;), Text(8, 0, &#39;매장 내 광고&#39;), Text(9, 0, &#39;관련 기사&#39;), Text(10, 0, &#39;인터넷 후기&#39;), Text(11, 0, &#39;주변 사람의 추천&#39;), Text(12, 0, &#39;기타&#39;), Text(13, 0, &#39;없음&#39;)])</code></pre>
+<pre class="python"><code>for p in chart.patches:
+#     print(p.get_x())
+    chart.annotate(int(p.get_height()),
+                  (p.get_x() + p.get_width() / 2., p.get_height()),
+                   ha = &quot;center&quot;,
+                   size = 12
+                  )</code></pre>
+<pre><code>## Text(0.0, 767.0, &#39;767&#39;)
+## Text(1.0, 507.0, &#39;507&#39;)
+## Text(2.0, 81.0, &#39;81&#39;)
+## Text(3.0, 24.0, &#39;24&#39;)
+## Text(4.0, 3.0, &#39;3&#39;)
+## Text(5.0, 20.0, &#39;20&#39;)
+## Text(6.0, 143.0, &#39;143&#39;)
+## Text(7.0, 110.0, &#39;110&#39;)
+## Text(8.0, 706.0, &#39;706&#39;)
+## Text(9.0, 79.0, &#39;79&#39;)
+## Text(10.0, 177.0, &#39;177&#39;)
+## Text(11.0, 516.0, &#39;516&#39;)
+## Text(12.0, 28.0, &#39;28&#39;)
+## Text(13.0, 8.0, &#39;8&#39;)</code></pre>
+<pre class="python"><code>plt.title(&quot;간편식 브랜드 선택시 영향을 미쳤던 정보 채널&quot;)</code></pre>
+<pre><code>## Text(0.5, 1.0, &#39;간편식 브랜드 선택시 영향을 미쳤던 정보 채널&#39;)</code></pre>
+<pre class="python"><code>plt.ylabel(&quot;구매 수&quot;)</code></pre>
+<pre><code>## Text(0, 0.5, &#39;구매 수&#39;)</code></pre>
+<pre class="python"><code>plt.show()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-7.png" width="100%" style="display: block; margin: auto;" /></p>
+<center>
+<p><img src="pic/media.png" /></p>
+</center>
+<p>간편식 브랜드 선택시 영향을 미쳤던 정보 채널에는 지상파 채널, 주변 사람의 추천, 매장 내 광고 등이 있었습니다.</p>
+<pre class="python"><code>table = create_tb(&quot;J_12_04_011&quot;)</code></pre>
+<pre class="python"><code>table.index = media_index</code></pre>
+<pre class="python"><code>temp_table = pd.merge(temp_table, table, left_index=True, right_index=True).\
+rename(columns = {&quot;0_x&quot;:&quot;J_12_04_010&quot;, &quot;0_y&quot;: &quot;J_12_04_011&quot;})</code></pre>
+<pre class="python"><code>chart = sns.barplot(data = table,
+           x = table.index.values,
+           y = table.iloc[:,0])
+plt.xticks(rotation = 90)</code></pre>
+<pre><code>## (array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13]), [Text(0, 0, &#39;지상파채널&#39;), Text(1, 0, &#39;케이블/종편&#39;), Text(2, 0, &#39;TV VOD&#39;), Text(3, 0, &#39;라디오&#39;), Text(4, 0, &#39;신문&#39;), Text(5, 0, &#39;잡지&#39;), Text(6, 0, &#39;인터넷/모바일&#39;), Text(7, 0, &#39;옥외/대중교통&#39;), Text(8, 0, &#39;매장 내 광고&#39;), Text(9, 0, &#39;관련 기사&#39;), Text(10, 0, &#39;인터넷 후기&#39;), Text(11, 0, &#39;주변 사람의 추천&#39;), Text(12, 0, &#39;기타&#39;), Text(13, 0, &#39;없음&#39;)])</code></pre>
+<pre class="python"><code>for p in chart.patches:
+#     print(p.get_x())
+    chart.annotate(int(p.get_height()),
+                  (p.get_x() + p.get_width() / 2., p.get_height()),
+                   ha = &quot;center&quot;,
+                   size = 12
+                  )</code></pre>
+<pre><code>## Text(0.0, 604.0, &#39;604&#39;)
+## Text(1.0, 379.0, &#39;379&#39;)
+## Text(2.0, 44.0, &#39;44&#39;)
+## Text(3.0, 27.0, &#39;27&#39;)
+## Text(4.0, 2.0, &#39;2&#39;)
+## Text(5.0, 11.0, &#39;11&#39;)
+## Text(6.0, 109.0, &#39;109&#39;)
+## Text(7.0, 39.0, &#39;39&#39;)
+## Text(8.0, 546.0, &#39;546&#39;)
+## Text(9.0, 21.0, &#39;21&#39;)
+## Text(10.0, 104.0, &#39;104&#39;)
+## Text(11.0, 290.0, &#39;290&#39;)
+## Text(12.0, 37.0, &#39;37&#39;)
+## Text(13.0, 56.0, &#39;56&#39;)</code></pre>
+<pre class="python"><code>plt.title(&quot;최근 1달간 간편식 브랜드를 접촉한 채널&quot;)</code></pre>
+<pre><code>## Text(0.5, 1.0, &#39;최근 1달간 간편식 브랜드를 접촉한 채널&#39;)</code></pre>
+<pre class="python"><code>plt.ylabel(&quot;구매 수&quot;)</code></pre>
+<pre><code>## Text(0, 0.5, &#39;구매 수&#39;)</code></pre>
+<pre class="python"><code>plt.show()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-1-9.png" width="100%" style="display: block; margin: auto;" /></p>
+<p>간편식 브랜드 접촉이 가장 많았던 매체는 지상파채널, 매장 내 광고, 케이블/종편의 순서였습니다. <br>
+여전히 기업들이 TV 매체에 돈을 많이 쓰기 때문에 나타나는 현상인 것 같습니다.</p>
+<pre class="python"><code>temp_table[&quot;ratio&quot;] = temp_table[&quot;J_12_04_010&quot;] / temp_table[&quot;J_12_04_011&quot;]</code></pre>
+<p>브랜드 접촉 대비 상품 구매에 영향이 컸던 정보 채널을 알아보기 위해서 둘을 나눈 ‘ratio’ 변수를 생성했습니다.</p>
+<pre class="python"><code># 영향을 미친 정보 채널 / 브랜드를 접촉한 채널
+# 실제 구매 / 광고량
+temp_table.sort_values(by = &quot;ratio&quot;, ascending = False)</code></pre>
+<pre><code>##            J_12_04_010  J_12_04_011     ratio
+## 관련 기사               79           21  3.761905
+## 옥외/대중교통            110           39  2.820513
+## TV VOD              81           44  1.840909
+## 잡지                  20           11  1.818182
+## 주변 사람의 추천          516          290  1.779310
+## 인터넷 후기             177          104  1.701923
+## 신문                   3            2  1.500000
+## 케이블/종편             507          379  1.337731
+## 인터넷/모바일            143          109  1.311927
+## 매장 내 광고            706          546  1.293040
+## 지상파채널              767          604  1.269868
+## 라디오                 24           27  0.888889
+## 기타                  28           37  0.756757
+## 없음                   8           56  0.142857</code></pre>
+<p>‘ratio’ 변수를 확인했을 때 값이 높은 순서는 ‘관련 기사’, ‘옥외/대중교통’ 등의 순서였습니다.<br>
+간편식 브랜드를 홍보할 때 PR이나 BTL 매체를 적극 활용할 명분이 있다는 것을 알 수 있습니다.<br>
+아래 그림은 영향을 미친 정보 채널에 ratio를 곱하여 트리맵 시각화 한 것입니다.</p>
+<pre class="python"><code>squarify.plot(temp_table[&quot;J_12_04_010&quot;] * temp_table[&quot;ratio&quot;],
+             label = media_index,
+              value = round(temp_table[&quot;J_12_04_010&quot;] * temp_table[&quot;ratio&quot;], 0),
+             alpha = 0.8)
+plt.axis(&quot;off&quot;)
+plt.show()</code></pre>
+<center>
+<p><img src="pic/treemap.png" width="528" /></p>
+</center>
+</div>
+</div>

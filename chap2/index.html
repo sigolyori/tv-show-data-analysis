@@ -1,0 +1,181 @@
+---
+title: TV 프로그램, 시청자 분석 - 2
+author: Heeyoung Kim
+date: '2021-07-24'
+slug: programs-and-ad-2
+categories:
+  - R
+tags:
+  - Advertising
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div id="wikipedia에서-tv-프로그램-정보-수집" class="section level1">
+<h1>2. Wikipedia에서 TV 프로그램 정보 수집</h1>
+<p>상품별 프로그램 추천을 위해서는 프로그램 정보가 있어야 합니다.<br>
+그래서 Wikipedia를 통해 과거 예능, 드라마 TV 프로그램 정보를 가지고 오는 실습을 해 보려고 합니다.<br>
+사용하는 라이브러리는 urllib, BeautifulSoup 등이 있습니다.</p>
+<div id="라이브러리-불러오기" class="section level2">
+<h2>2.1. 라이브러리 불러오기</h2>
+<pre class="python"><code>import pandas as pd
+import numpy as np
+import re
+from bs4 import BeautifulSoup
+import urllib.request
+from urllib import parse</code></pre>
+<p>직접 프로그램 목록을 작성하여 엑셀 파일로 만들었습니다.</p>
+</div>
+<div id="프로그램-목록-데이터-가져오기" class="section level2">
+<h2>2.2. 프로그램 목록 데이터 가져오기</h2>
+<pre class="python"><code>programs = pd.read_excel(r&quot;C:\Users\TFG5076XG\Documents\pythoncodes\data\프로그램 목록.xlsx&quot;)</code></pre>
+</div>
+<div id="데이터-크롤링" class="section level2">
+<h2>2.3. 데이터 크롤링</h2>
+<p>크롤링 과정은 다음과 같은 순서로 진행했습니다.</p>
+<ul>
+<li>위키피디아, 네이버 크롤링</li>
+<li>한글 프로그램명을 url에 덧붙이기 위해 파싱</li>
+<li>BeautifulSoup 활용</li>
+<li>정보가 없을 때 예외 처리</li>
+</ul>
+<pre class="python"><code>baseurl = &quot;https://ko.wikipedia.org/wiki/&quot;</code></pre>
+<pre class="python"><code>programs[&quot;suburl&quot;] = programs[&quot;프로그램명&quot;].apply(lambda x: re.sub(&quot; &quot;, &quot;_&quot;, x))</code></pre>
+<pre class="python"><code>programs[&quot;quote&quot;] =  programs[&quot;suburl&quot;].apply(lambda x: parse.quote(x))</code></pre>
+<pre class="python"><code>programs[&quot;url&quot;] = baseurl + programs[&quot;quote&quot;]</code></pre>
+<pre class="python"><code>programs[&quot;values&quot;] = &quot;&quot;</code></pre>
+<pre class="python"><code>dramas = pd.read_csv(&quot;dramas_df.csv&quot;)
+dramas = dramas.drop(&quot;Unnamed: 0&quot;, axis = 1)
+dramas.columns.values[0] = &quot;프로그램명&quot;</code></pre>
+<pre class="python"><code>programs = pd.concat([programs.drop([&quot;suburl&quot;,&quot;quote&quot;], axis = 1), dramas], axis = 0, ignore_index=True)</code></pre>
+<pre class="python"><code>programs[&quot;values&quot;][programs[&quot;values&quot;].isnull()] =  &quot;&quot;</code></pre>
+<center>
+<p><img src="pic/wiki_table_window.png" /></p>
+</center>
+<p>위의 사진처럼 표에 TV 프로그램에 대한 정보가 들어 가 있습니다. <br>
+주의해야 할 점은 TV 프로그램마다 표의 속성 길이가 다르기 때문에 예외 처리를 해 주어야 합니다.</p>
+<pre class="python"><code>idx = 0
+
+for link in programs[&quot;url&quot;]:
+    dic = dict()
+
+    page = urllib.request.urlopen(link).read().decode(&quot;utf-8&quot;)
+    soup = BeautifulSoup(page, &quot;html.parser&quot;)
+
+    for i in range(len(soup.find(&quot;table&quot;).find_all(&quot;tr&quot;))):
+        if len(soup.find(&quot;table&quot;).find_all(&quot;tr&quot;)[i].find_all(&quot;th&quot;)) != 0:
+#             print(soup.find(&quot;table&quot;).find_all(&quot;tr&quot;)[i].find(&quot;th&quot;).text,
+#                   soup.find(&quot;table&quot;).find_all(&quot;tr&quot;)[i].find(&quot;td&quot;).text.strip())
+            dic[soup.find(&quot;table&quot;).find_all(&quot;tr&quot;)[i].find(&quot;th&quot;).text.strip()] = \
+            soup.find(&quot;table&quot;).find_all(&quot;tr&quot;)[i].find(&quot;td&quot;).text.strip()
+#             print(&quot;------&quot;)
+        else:
+            pass
+    programs[&quot;values&quot;][idx] = dic
+    idx += 1</code></pre>
+<center>
+<p><img src="pic/naver.png" /></p>
+</center>
+<p>또한 네이버에서 프로그램의 시청률 정보를 크롤링 해 주었습니다. <br>
+여기도 정보가 없는 곳은 에러를 방지하기 위해 try, except 문으로 예외처리를 해 줍니다.</p>
+<pre class="python"><code>programs[&quot;rating&quot;] = &quot;&quot;</code></pre>
+<pre class="python"><code>idx_rating = programs.columns.get_loc(&quot;rating&quot;)</code></pre>
+<pre class="python"><code>for i in range(len(programs)):
+    word_parsed = parse.quote(programs[&quot;프로그램명&quot;][i])
+    naver_url = naver_baseurl + word_parsed
+    html = urllib.request.urlopen(naver_url).read().decode(&quot;utf-8&quot;)
+    soup = BeautifulSoup(html, &quot;html.parser&quot;)
+    try:
+        programs.iat[i,idx_rating] = soup.find(&quot;em&quot;, class_=&quot;value&quot;).text
+    except AttributeError:
+        programs.iat[i,idx_rating] = &quot;&quot;</code></pre>
+<pre class="python"><code>programs</code></pre>
+<pre class="python"><code>programs[&quot;values&quot;][0][&quot;장르&quot;]</code></pre>
+<pre class="python"><code>programs[&quot;장르&quot;] = &quot;&quot;
+programs[&quot;방송 채널&quot;] = &quot;&quot;
+programs[&quot;방송 시간&quot;] = &quot;&quot;</code></pre>
+<pre class="python"><code>idx_genre = programs.columns.get_loc(&quot;장르&quot;)</code></pre>
+<pre class="python"><code>idx_genre</code></pre>
+<pre class="python"><code>programs</code></pre>
+<pre class="python"><code>programs.iat[0, idx_genre]</code></pre>
+<pre class="python"><code>programs[&quot;values&quot;][2][&quot;장르&quot;]
+programs[&quot;values&quot;][2][&quot;방송 채널&quot;]
+programs[&quot;values&quot;][2][&quot;방송 시간&quot;]</code></pre>
+<pre class="python"><code>attr_list = [&quot;장르&quot;, &quot;방송 채널&quot;, &quot;방송 시간&quot;]</code></pre>
+<pre class="python"><code>for i in range(len(programs)):
+    for attr in attr_list:
+#         print(i)
+        try:
+            programs.iat[i, programs.columns.get_loc(attr)] = programs[&quot;values&quot;][i][attr]
+        except :
+            programs.iat[i, programs.columns.get_loc(attr)] = &quot;&quot;</code></pre>
+<pre class="r"><code>programs = readr::read_csv(&quot;programs.csv&quot;)
+knitr::kable(head(programs[,c(&quot;프로그램명&quot;, &quot;rating&quot;, &quot;장르&quot;, &quot;방송 채널&quot;, &quot;방송 시간&quot;)]))</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">프로그램명</th>
+<th align="left">rating</th>
+<th align="left">장르</th>
+<th align="left">방송 채널</th>
+<th align="left">방송 시간</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">배틀트립</td>
+<td align="left">7.4%</td>
+<td align="left">관찰 버라이어티, 여행</td>
+<td align="left">KBS 2TV</td>
+<td align="left">매주 금요일 밤 8:30 ~ 9:45</td>
+</tr>
+<tr class="even">
+<td align="left">신상출시 편스토랑</td>
+<td align="left">3.7%</td>
+<td align="left">요리</td>
+<td align="left">KBS 2TV</td>
+<td align="left">매주 금요일 밤 9시 40분 ~ 11시 30분</td>
+</tr>
+<tr class="odd">
+<td align="left">옥탑방의 문제아들</td>
+<td align="left">3.2%</td>
+<td align="left">리얼 버라이어티</td>
+<td align="left">KBS 2TV</td>
+<td align="left">매주 화요일 밤 10시 40분 ~ 12시</td>
+</tr>
+<tr class="even">
+<td align="left">사장님 귀는 당나귀 귀</td>
+<td align="left">6.2%</td>
+<td align="left">관찰 버라이어티</td>
+<td align="left">KBS2, U-KBS HEART</td>
+<td align="left">매주 일요일 오후 5:00 ~ 6:30</td>
+</tr>
+<tr class="odd">
+<td align="left">슈퍼맨이 돌아왔다</td>
+<td align="left">5.7%</td>
+<td align="left">관찰 버라이어티</td>
+<td align="left">KBS 2TV</td>
+<td align="left">일요일 밤 9:15 ~ 11:05</td>
+</tr>
+<tr class="even">
+<td align="left">구해줘! 홈즈</td>
+<td align="left">5.2%</td>
+<td align="left">리얼 버라이어티, 생활</td>
+<td align="left">MBC TV</td>
+<td align="left">매주 일요일 밤 10:40 ~ 12:20</td>
+</tr>
+</tbody>
+</table>
+<p>완성된 TV 프로그램 정보 테이블은 위와 같은 모양을 가집니다.</p>
+<pre class="r"><code>table = programs[!is.na(programs$rating),] %&gt;% 
+  select(프로그램명, rating) %&gt;% 
+  mutate(rating = as.double(stringr::str_remove(rating, &quot;%&quot;)))</code></pre>
+<center>
+<p><img src="pic/dist.png" /></p>
+</center>
+<p>간단하게 시청률 분포를 보면 2-4% 대의 프로그램이 많은 것을 볼 수 있습니다. <br>
+흔치 않게 36% 정도를 기록한 프로그램도 있습니다. 확인 해보니 KBS2의 주말 가족드라마로 보입니다.</p>
+<pre class="python"><code># programs.to_csv(&quot;programs.csv&quot;, index = False)</code></pre>
+</div>
+</div>
